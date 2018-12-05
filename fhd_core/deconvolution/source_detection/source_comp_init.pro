@@ -13,8 +13,13 @@ beam_struct={beam,xx:0.,yy:0.,xy:Complex(0.),yx:Complex(0.),I:0.,Q:0.,U:0.,V:0.}
 shape_struct={x:0.,y:0.,angle:0.} ;gets used if keyword gaussian_source_models is set
 ;flux order is 0-3: xx, yy, xy, yx in apparent brightness; 4-7: I, Q, U, V in sky brightness
 ;flag type codes are 0: no flag, 1: low confidence 2: sidelobe contamination
-struct_base={id:-1L,x:0.,y:0.,ra:0.,dec:0.,ston:0.,freq:100.,alpha:0.,gain:1.,flag:0,extend:Ptr_new(),$
-    flux:flux_struct,shape:shape_struct,beam:beam_struct}
+IF keyword_set(shape) THEN BEGIN
+    struct_base={id:-1L,x:0.,y:0.,ra:0.,dec:0.,ston:0.,freq:100.,alpha:0.,gain:1.,flag:0,extend:Ptr_new(),$
+        flux:flux_struct,shape:shape_struct,beam:beam_struct}
+ENDIF ELSE BEGIN
+    struct_base={id:-1L,x:0.,y:0.,ra:0.,dec:0.,ston:0.,freq:100.,alpha:0.,gain:1.,flag:0,extend:Ptr_new(),$
+        flux:flux_struct,beam:beam_struct}
+ENDELSE
 source_comp_new=Replicate(struct_base,n_sources>1)
 
 IF Keyword_Set(xvals) THEN source_comp_new.x=xvals
