@@ -1,4 +1,6 @@
-PRO eor_simulation_enterprise,cleanup=cleanup,recalculate_all=recalculate_all,export_images=export_images,version=version,$
+PRO eor_simulation_enterprise,cleanup=cleanup,recalculate_all=recalculate_all,$
+    input_uvfits_file=input_uvfits_file, input_data_directory=input_data_directory, $
+    export_images=export_images,version=version,$
     beam_recalculate=beam_recalculate,healpix_recalculate=healpix_recalculate, $
     use_saved_uvf = use_saved_uvf, uvf_savefile = uvf_savefile, $
     sim_baseline_density = sim_baseline_density, $
@@ -33,10 +35,18 @@ PRO eor_simulation_enterprise,cleanup=cleanup,recalculate_all=recalculate_all,ex
   image_filter_fn='filter_uv_uniform' ;applied ONLY to output images
   ;image_filter_fn=''
 
-  ; This file structure works at enterprise
-  data_directory='/data3/MWA/MWA_data4/EoRuvfits/jd'+strtrim(julian_day,2)+'v'+strtrim(uvfits_version,2)+'_'+strtrim(uvfits_subversion,2)
-  ;  data_directory=rootdir('mwa')+filepath('',root='DATA3',subdir=['128T','testcal'+'3'])
-  vis_file_list=file_search(data_directory,'*.uvfits',count=n_files)
+  if n_elements(input_uvfits_file) eq 0 then begin
+    if n_elements(input_data_directory) eq 0 then begin
+      ; This file structure works at enterprise
+      data_directory='/data3/MWA/MWA_data4/EoRuvfits/jd'+strtrim(julian_day,2)+'v'+strtrim(uvfits_version,2)+'_'+strtrim(uvfits_subversion,2)
+      ;  data_directory=rootdir('mwa')+filepath('',root='DATA3',subdir=['128T','testcal'+'3'])
+    endif else begin
+      data_directory = input_data_directory
+    endelse
+    vis_file_list=file_search(data_directory,'*.uvfits',count=n_files)
+  endif else begin
+    vis_file_list=[input_uvfits_file]
+  endelse
 
   fhd_file_list=fhd_path_setup(vis_file_list,version=version,output_directory=output_directory,_Extra=extra)
   healpix_path=fhd_path_setup(output_dir=output_directory,subdir='Healpix',output_filename='Combined_obs',version=version,_Extra=extra)

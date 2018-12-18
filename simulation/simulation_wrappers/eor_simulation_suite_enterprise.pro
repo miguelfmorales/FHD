@@ -1,4 +1,5 @@
 pro eor_simulation_suite_enterprise, uvf_input = uvf_input, $
+    input_uvfits_file=input_uvfits_file, input_data_directory=input_data_directory, $
     file_uvw = file_uvw, large_healpix = large_healpix, $
     flat_sigma = flat_sigma, run_name = run_name, $
     sample_inds = sample_inds, eor_real_sky = eor_real_sky, $
@@ -12,20 +13,30 @@ pro eor_simulation_suite_enterprise, uvf_input = uvf_input, $
   if keyword_set(large_healpix) then begin
     restrict_hpx_inds='EoR0_high_healpix_inds_3x.idlsave'
   endif
+  
+  if n_elements(input_uvfits_file) eq 1 then begin
+    file_uvw=1
+    start_file_index=0
+    end_file_index=0
+  endif else begin
+    start_file_index=36
+    end_file_index=36
+  endelse 
 
   if keyword_set(file_uvw) then begin
-    if n_elements(run_name) eq 0 then run_name = 'mwa_zenith'
+    if n_elements(run_name) eq 0 and n_elements(input_uvfits_file) eq 0 then run_name = 'mwa_zenith'
 
     version = 'bjh_sim_' + sim_in + '_' + run_name
 
-    n_samples = 1
+    n_samples = 1s
     no_suite_plots = 1
     use_weight_cutoff_sim = 1
   endif else begin
     ;; larger numbers here correspond to increasing baseline density.
     ;; higher densities take more memory. Ideally going up to 5 would be good,
     ;; enterprise doesn't seem to be able to do more than 0.5 without crashing.
-    sample_factors = [.0001,.0005,.001,.005,.01,.05,.1,.5, 1]
+    sample_factors = [.0001, .0005, .001, .005, .01, .02, .03, .04, .05, .1, .5, 1]
+    ;;sample_factors = [.02, .03, .04, .05, .1, .5, 1]
 
     if n_elements(run_name) eq 0 then message, 'run name must be specified.'
 
@@ -101,6 +112,8 @@ pro eor_simulation_suite_enterprise, uvf_input = uvf_input, $
   plotfile_freq = folder_path + 'sim_suite_plots/arrsim_flat' + '_' + run_name + '_freq_power_vs_density' + fadd
   plotfile_wt = folder_path + 'sim_suite_plots/arrsim_flat' + '_' + run_name + '_weight_vs_density' + fadd
 
+  suite_power_savefile = folder_path + 'sim_suite_plots/arrsim_flat' + '_' + run_name + '_cube_power_info.idlsave'
+
   t0 = systime(1)
 
   nbeams=1
@@ -121,14 +134,16 @@ pro eor_simulation_suite_enterprise, uvf_input = uvf_input, $
         if keyword_set(file_uvw) then begin
           print, 'simulating file uvws in folder: ' + version[j]
 
-          eor_simulation_enterprise, start=36, end=36, version=version[j], $
+          eor_simulation_enterprise, start=start_file_index, end=end_file_index, version=version[j], $
+            input_uvfits_file=input_uvfits_file, input_data_directory=input_data_directory, $
             flat_sigma = flat_sigma, use_saved_uvf = use_saved_uvf, uvf_savefile = saved_uvf_filename, $
             eor_real_sky = eor_real_sky, output_directory=folder_path, restrict_hpx_inds=restrict_hpx_inds, $
             /recalculate_all; = recalc_sim
         endif else begin
           print, 'simulating density: ' + number_formatter(sample_factors[j]) + ' in folder: ' + version[j]
 
-          eor_simulation_enterprise, start=36, end=36, version=version[j], sim_baseline_density=sample_factors[j], $
+          eor_simulation_enterprise, start=start_file_index, end=end_file_index, version=version[j], sim_baseline_density=sample_factors[j], $
+            input_uvfits_file=input_uvfits_file, input_data_directory=input_data_directory, $
             flat_sigma = flat_sigma, use_saved_uvf = use_saved_uvf, uvf_savefile = saved_uvf_filename, $
             eor_real_sky = eor_real_sky, output_directory=folder_path, restrict_hpx_inds=restrict_hpx_inds, $
             /recalculate_all; = recalc_sim
@@ -189,6 +204,10 @@ pro eor_simulation_suite_enterprise, uvf_input = uvf_input, $
   endfor
   t1=systime(1)
 
+  save, file=suite_power_savefile, sim_ave_powers, sim_wt_ave_powers, sim_ave_powers_uvf, $
+    sim_wt_ave_powers_uvf, sim_ave_weights, sim_nbsl_lambda2, sim_ave_power_freq, $
+    sim_wt_ave_power_freq, sim_ave_weights_freq, sim_nbsl_lambda2_freq, flat_power
+
   run_time = t1-t0
   if run_time lt 60 then time_str = number_formatter(run_time) + ' s' $
   else if run_time lt 3600 then time_str = number_formatter(run_time/60.) + ' m' else time_str = number_formatter(run_time/3600.) + ' h'
@@ -215,7 +234,8 @@ pro eor_simulation_suite_enterprise, uvf_input = uvf_input, $
       font = 1
       legend_charsize = 2
 
-      cgps_open, plotfile, /font, encapsulated=eps, landscape=1, pagetype='letter'
+      if keyword_set(eps) then landscape = 0 else landscape=1
+      cgps_open, plotfile, /font, encapsulated=eps, landscape=landscape, pagetype='letter'
 
     endif else if windowavailable(window_num) then wset, window_num else window, window_num
 
@@ -226,14 +246,13 @@ pro eor_simulation_suite_enterprise, uvf_input = uvf_input, $
     if keyword_set(plot_ratio) then begin
       if keyword_set(use_peak) then power_norm = max(sim_wt_ave_powers) else power_norm = flat_power
 
-      yrange=[0, max([sim_ave_powers/power_norm, sim_wt_ave_powers/power_norm])]
+      yrange=[0, 1.5]
       xrange=minmax(sim_ave_weights)
 
       cgplot, sim_nbsl_lambda2[0,*], sim_ave_powers[0,*]*0+0.5, color='black', yrange = yrange, $
         xtitle='baselines/lamda^2', ytitle = 'power ratio', /xlog, title = run_name, $
         thick = thick, charthick = charthick, xthick = xthick, ythick = ythick, charsize = charsize, font = font, $
         position = position
-      for i=0, nbeams-1 do cgplot, sim_nbsl_lambda2[i,*], sim_ave_powers[i,*]/power_norm, color=colors1[i], psym=-4, /over, thick = thick
       for i=0, nbeams-1 do cgplot, sim_nbsl_lambda2[i,*], sim_wt_ave_powers[i,*]/power_norm, color=colors2[i], /over, psym=-4, thick = thick
 
       beam_str = strarr(nbeams)
@@ -244,10 +263,10 @@ pro eor_simulation_suite_enterprise, uvf_input = uvf_input, $
         endcase
       endfor
 
-      al_legend, ['weighted power ave ' + beam_str, 'straight power ave ' + beam_str,'0.5'],$
-        textcolor = [colors2[0:nbeams-1], colors1[0:nbeams-1], 'black'], box = 0, /right, charsize = legend_charsize, charthick = charthick
+      al_legend, ['weighted power ave ' + beam_str, '0.5'],$
+        textcolor = [colors2[0:nbeams-1], 'black'], box = 0, /right, charsize = legend_charsize, charthick = charthick
     endif else begin
-      yrange=minmax([sim_ave_powers, sim_wt_ave_powers, + fltarr(nbeams, n_samples) + flat_power])
+      yrange=minmax([sim_wt_ave_powers, + fltarr(nbeams, n_samples) + flat_power])
       yrange = 10^float([floor(alog10(yrange[0])), ceil(alog10(yrange[1]))])
       xrange=minmax(sim_nbsl_lambda2)
 
@@ -255,7 +274,6 @@ pro eor_simulation_suite_enterprise, uvf_input = uvf_input, $
         xtitle='baselines/lamda^2', ytitle = 'power', /xlog, /ylog, title = run_name, $
         thick = thick, charthick = charthick, xthick = xthick, ythick = ythick, charsize = charsize, font = font, $
         position = position
-      for i=0, nbeams-1 do cgplot, sim_nbsl_lambda2[i,*], sim_ave_powers[i,*], color=colors1[i], psym=-4, /over, thick = thick
       for i=0, nbeams-1 do cgplot, sim_nbsl_lambda2[i,*], sim_wt_ave_powers[i,*], color=colors2[i], /over, psym=-4, thick = thick
 
       beam_str = strarr(nbeams)
@@ -266,8 +284,8 @@ pro eor_simulation_suite_enterprise, uvf_input = uvf_input, $
         endcase
       endfor
 
-      al_legend, ['weighted power ave ' + beam_str, 'straight power ave ' + beam_str, + 'input power'],$
-        textcolor = [colors2[0:nbeams-1], colors1[0:nbeams-1], 'black'], box = 0, /right, $
+      al_legend, ['weighted power ave ' + beam_str, 'input power'],$
+        textcolor = [colors2[0:nbeams-1], 'black'], box = 0, /right, $
         charsize = legend_charsize, charthick = charthick
 
     endelse
@@ -275,7 +293,8 @@ pro eor_simulation_suite_enterprise, uvf_input = uvf_input, $
     if keyword_set(pub) and n_elements(multi_pos) eq 0 then begin
       cgps_close, png = png, pdf = pdf, delete_ps = delete_ps, density=600
 
-      cgps_open, plotfile_uvf, /font, encapsulated=eps, landscape=1, pagetype='letter'
+      if keyword_set(eps) then landscape = 0 else landscape=1
+      cgps_open, plotfile_uvf, /font, encapsulated=eps, landscape=landscape, pagetype='letter'
 
     endif else if windowavailable(window_num+1) then wset, window_num+1 else window, window_num+1
 
@@ -289,7 +308,6 @@ pro eor_simulation_suite_enterprise, uvf_input = uvf_input, $
         xtitle='baselines/lamda^2', ytitle = 'power ratio', /xlog, title = run_name, $
         thick = thick, charthick = charthick, xthick = xthick, ythick = ythick, charsize = charsize, font = font, $
         position = position
-      for i=0, nbeams-1 do cgplot, sim_nbsl_lambda2[i,*], sim_ave_powers_uvf[i,*]/power_norm, color=colors1[i], psym=-4, /over, thick = thick
       for i=0, nbeams-1 do cgplot, sim_nbsl_lambda2[i,*], sim_wt_ave_powers_uvf[i,*]/power_norm, color=colors2[i], /over, psym=-4, thick = thick
 
       beam_str = strarr(nbeams)
@@ -300,8 +318,8 @@ pro eor_simulation_suite_enterprise, uvf_input = uvf_input, $
         endcase
       endfor
 
-      al_legend, ['weighted power ave (uvf) ' + beam_str, 'straight power ave (uvf) ' + beam_str,'0.5'],$
-        textcolor = [colors2[0:nbeams-1], colors1[0:nbeams-1], 'black'], box = 0, /right, charsize = legend_charsize, charthick = charthick
+      al_legend, ['weighted power ave (uvf) ' + beam_str, '0.5'],$
+        textcolor = [colors2[0:nbeams-1], 'black'], box = 0, /right, charsize = legend_charsize, charthick = charthick
     endif else begin
       ;yrange=minmax([sim_ave_powers_uvf, sim_wt_ave_powers_uvf, + fltarr(nbeams, n_samples) + flat_power])
       yrange=minmax([sim_ave_powers_uvf, + fltarr(nbeams, n_samples) + flat_power])
@@ -312,8 +330,7 @@ pro eor_simulation_suite_enterprise, uvf_input = uvf_input, $
         xtitle='baselines/lamda^2', ytitle = 'power', /xlog, /ylog, title = run_name, $
         thick = thick, charthick = charthick, xthick = xthick, ythick = ythick, charsize = charsize, font = font, $
         position = position
-      for i=0, nbeams-1 do cgplot, sim_nbsl_lambda2[i,*], sim_ave_powers_uvf[i,*], color=colors1[i], psym=-4, /over, thick = thick
-      for i=0, nbeams-1 do cgplot, sim_nbsl_lambda2[i,*], sim_wt_ave_powers_uvf[i,*], color=colors2[i], /over, psym=-4, thick = thick
+       for i=0, nbeams-1 do cgplot, sim_nbsl_lambda2[i,*], sim_wt_ave_powers_uvf[i,*], color=colors2[i], /over, psym=-4, thick = thick
 
       beam_str = strarr(nbeams)
       for i=0, nbeams-1 do begin
@@ -323,8 +340,8 @@ pro eor_simulation_suite_enterprise, uvf_input = uvf_input, $
         endcase
       endfor
 
-      al_legend, ['weighted power ave (uvf) ' + beam_str, 'straight power ave (uvf) ' + beam_str, + 'input power'],$
-        textcolor = [colors2[0:nbeams-1], colors1[0:nbeams-1], 'black'], box = 0, /right, $
+      al_legend, ['weighted power ave (uvf) ' + beam_str, 'input power'],$
+        textcolor = [colors2[0:nbeams-1], 'black'], box = 0, /right, $
         charsize = legend_charsize, charthick = charthick
 
     endelse
@@ -332,7 +349,8 @@ pro eor_simulation_suite_enterprise, uvf_input = uvf_input, $
     if keyword_set(pub) then begin
       cgps_close, png = png, pdf = pdf, delete_ps = delete_ps, density=600
 
-      cgps_open, plotfile_wt, /font, encapsulated=eps, landscape=1, pagetype='letter'
+      if keyword_set(eps) then landscape = 0 else landscape=1
+      cgps_open, plotfile_wt, /font, encapsulated=eps, landscape=landscape, pagetype='letter'
 
     endif else if windowavailable(window_num+2) then wset, window_num+2 else window, window_num+2
 
