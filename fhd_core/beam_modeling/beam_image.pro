@@ -20,26 +20,6 @@ FUNCTION beam_image,psf,obs,pol_i=pol_i,freq_i=freq_i,dimension=dimension,elemen
 compile_opt idl2,strictarrsubs  
 
 IF N_Elements(pol_i) EQ 0 THEN pol_i=0
-IF N_Elements(dimension) EQ 0 THEN dimension=obs.dimension
-IF N_Elements(elements) EQ 0 THEN elements=dimension
-psf_dim=psf.dim
-psf_res=psf.resolution
-n_pol=psf.n_pol
-n_freq=psf.n_freq
-pol_norm=psf.pnorm
-freq_norm=psf.fnorm
-rbin=0;psf_res/2
-xl=dimension/2-psf_dim/2+1
-xh=dimension/2-psf_dim/2+psf_dim
-yl=elements/2-psf_dim/2+1
-yh=elements/2-psf_dim/2+psf_dim
-
-group_id=psf.id[pol_i,0,*]
-group_n=histogram(group_id,min=0,/binsize,reverse_ind=ri_id)
-gi_use=where(group_n,n_groups)
-gi_ref=ri_id[ri_id[gi_use]]
-
-beam_arr=*psf.beam_ptr
 
 IF tag_exist(psf,'fbin_i') THEN freq_bin_i=psf.fbin_i
 
@@ -52,99 +32,39 @@ ENDIF
 
 IF N_Elements(freq_i) GT 0 THEN freq_i_use=freq_i
 
-n_bin_use=0.
-IF Keyword_Set(square) THEN BEGIN
-    beam_base=Fltarr(dimension,elements)
-    IF N_Elements(freq_bin_i) EQ 0 THEN BEGIN
-        n_freq_bin=psf.n_freq
-        FOR fi=0,n_freq_bin-1 DO BEGIN
-            beam_single=Complexarr(psf_dim,psf_dim)
-            FOR gi=0,n_groups-1 DO BEGIN
-                beam_single+=Reform(*(*beam_arr[pol_i,fi,gi_ref[gi]])[rbin,rbin]*group_n[gi_use[gi]],psf_dim,psf_dim)
-            ENDFOR
-            beam_single/=Total(group_n[gi_use])
-            IF Keyword_Set(abs) THEN beam_single=Abs(beam_single)
-            beam_base_uv1=Complexarr(dimension,elements)
-            beam_base_uv1[xl:xh,yl:yh]=beam_single
-;            beam_base_uv1+=Shift(Reverse(reverse(Conj(beam_base_uv1),1),2),1,1)
-            beam_base_single=fft_shift(FFT(fft_shift(beam_base_uv1),/inverse));/2.
-            beam_base+=Real_part(beam_base_single*Conj(beam_base_single));>0
-            n_bin_use+=1.*freq_norm[fi]
-        ENDFOR
-    ENDIF ELSE BEGIN
-        IF N_Elements(n_freq) EQ 0 THEN n_freq=psf.n_freq
-        IF N_Elements(freq_i_use) EQ 0 THEN freq_i_use=findgen(n_freq)
-        nf_use=N_Elements(freq_i_use)
-        freq_bin_use=freq_bin_i[freq_i_use]
-        fbin_use=freq_bin_use[Uniq(freq_bin_use,Sort(freq_bin_use))]
-        nbin=N_Elements(Uniq(freq_bin_use,Sort(freq_bin_use)))
-        FOR bin0=0L,nbin-1 DO BEGIN
-            fbin=fbin_use[bin0]
-            nf_bin=Float(Total(freq_bin_use EQ fbin))
-            beam_single=Complexarr(psf_dim,psf_dim)
-            FOR gi=0,n_groups-1 DO BEGIN
-                beam_single+=Reform(*(*beam_arr[pol_i,fbin,gi_ref[gi]])[rbin,rbin]*group_n[gi_use[gi]],psf_dim,psf_dim)
-            ENDFOR
-            beam_single/=Total(group_n[gi_use])
-            IF Keyword_Set(abs) THEN beam_single=Abs(beam_single)
-            beam_base_uv1=Complexarr(dimension,elements)
-            beam_base_uv1[xl:xh,yl:yh]=beam_single
-;            beam_base_uv1+=Shift(Reverse(reverse(Conj(beam_base_uv1),1),2),1,1)            
-            beam_base_single=fft_shift(FFT(fft_shift(beam_base_uv1),/inverse));/2.
-;            neg_inds=where(real_part(beam_base_single) LT 0,n_neg)
-;            IF n_neg GT 0 THEN beam_base_single[neg_inds]=0.
-            beam_base+=nf_bin*Real_part(beam_base_single*Conj(beam_base_single));>0
-            n_bin_use+=nf_bin*freq_norm[fbin]
-            
-        ENDFOR
-    ENDELSE
+image_power_beam_arr = (*psf.image_info).image_power_beam_arr
+psf_image_dim = (*psf.image_info).psf_image_dim
+
+IF N_Elements(freq_bin_i) EQ 0 THEN BEGIN
+  n_freq=psf.n_freq
+  freq_i_use = indgen(n_freq)
 ENDIF ELSE BEGIN
-    IF N_Elements(freq_bin_i) EQ 0 THEN BEGIN
-        n_freq_bin=psf.n_freq
-        beam_base_uv=complexarr(psf_dim,psf_dim)
-        FOR fi=0,n_freq_bin-1 DO BEGIN
-            beam_single=Complexarr(psf_dim,psf_dim)
-            FOR gi=0,n_groups-1 DO BEGIN
-                beam_single+=Reform(*(*beam_arr[pol_i,fi,gi_ref[gi]])[rbin,rbin]*group_n[gi_use[gi]],psf_dim,psf_dim)
-            ENDFOR
-            beam_single/=Total(group_n[gi_use])
-            beam_base_uv+=beam_single
-            n_bin_use+=1.*freq_norm[fi]
-        ENDFOR
-    ENDIF ELSE BEGIN
-        IF N_Elements(n_freq) EQ 0 THEN n_freq=N_Elements(freq_bin_i)
-        IF N_Elements(freq_i_use) EQ 0 THEN freq_i_use=findgen(n_freq)
-        nf_use=N_Elements(freq_i_use)
-        beam_base_uv=complexarr(psf_dim,psf_dim)
-        FOR fi0=0L,nf_use-1 DO BEGIN
-            fi=freq_i_use[fi0]
-            IF N_Elements(freq_i) GT 0 THEN IF Total(freq_i EQ fi) EQ 0 THEN CONTINUE
-            fbin=freq_bin_i[fi]
-            beam_single=Complexarr(psf_dim,psf_dim)
-            FOR gi=0,n_groups-1 DO BEGIN
-                beam_single+=Reform(*(*beam_arr[pol_i,fbin,gi_ref[gi]])[rbin,rbin]*group_n[gi_use[gi]],psf_dim,psf_dim)
-            ENDFOR
-            beam_single/=Total(group_n[gi_use])
-            beam_base_uv+=beam_single
-            n_bin_use+=1.*freq_norm[fbin]
-        ENDFOR
-    ENDELSE
-    
-    beam_base_uv1=Complexarr(dimension,elements)
-    beam_base_uv1[xl:xh,yl:yh]=beam_base_uv
-;    beam_base_uv1+=Shift(Reverse(reverse(Conj(beam_base_uv1),1),2),1,1)
-    beam_base=fft_shift(FFT(fft_shift(beam_base_uv1),/inverse));/2.
+  IF N_Elements(n_freq) EQ 0 THEN n_freq=N_Elements(freq_bin_i)
 ENDELSE
-beam_base/=n_bin_use
-beam_base=real_part(beam_base)
 
-;IF Keyword_Set(obs) THEN beam_test=beam_base[obs.obsx,obs.obsy] ELSE beam_test=Max(beam_base)
-;beam_test=Max(beam_base)
-;;;since this form of the beam is only an approximation (should be individually applied to each frequency), ensure that the normalization is preserved
+beam_base=Fltarr(psf_image_dim,psf_image_dim)
+for fi=0,n_freq-1 do begin
+    freq_ind = freq_i_use[fi]
+    IF keyword_set(square) THEN BEGIN
+        beam_base+=image_power_beam_arr[pol_i, freq_ind]^2.
+    ENDIF ELSE BEGIN
+        beam_base+=image_power_beam_arr[pol_i, freq_ind]
+    ENDELSE
+endfor
+beam_base/=n_freq
 
-;beam_test=1.
-;IF Keyword_Set(square) THEN pnorm_use=pol_norm[pol_i]^2./beam_test ELSE pnorm_use=(pol_norm[pol_i])/beam_test
-;beam_base*=pnorm_use
+IF N_Elements(dimension) EQ 0 THEN dimension=obs.dimension
+obsx=obs.obsx
+obsy=obs.obsy
+psf_resolution = psf.resolution
+psf_intermediate_res=(Ceil(Sqrt(psf_resolution)/2)*2.)<psf_resolution
+psf_scale=dimension*psf_intermediate_res/psf_image_dim
+; Interpolate from:
+; x[ind]=ind*psf_scale-psf_image_dim*psf_scale/2.+obsx and y[ind]=ind*psf_scale-psf_image_dim*psf_scale/2.+obsy
+; to x[ind]=ind-obsx and y[ind]=ind-obsy
+xvals_interp = (findgen(fix(dimension))-2.*obsx)/psf_scale + psf_image_dim/2.
+yvals_interp = (findgen(fix(dimension))-2.*obsy)/psf_scale + psf_image_dim/2.
+beam_base = interpolate(beam_base, xvals_interp, yvals_interp, /grid, cubic=-0.5)
 
 RETURN,beam_base
 END
