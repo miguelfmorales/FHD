@@ -106,7 +106,7 @@ FUNCTION beam_setup,obs,status_str,antenna,file_path_fhd=file_path_fhd,restore_l
 
   complex_flag_arr=intarr(n_pol,nfreq_bin)
   beam_arr=Ptrarr(n_pol,nfreq_bin,nbaselines)
-  image_power_beam_arr=PTRARR(n_pol,nfreq_bin)
+  image_power_beam_arr=REFORM(PTRARR(n_pol,nfreq_bin), n_pol, nfreq_bin)
   ant_A_list=tile_A[0:nbaselines-1]
   ant_B_list=tile_B[0:nbaselines-1]
   baseline_mod=(2.^(Ceil(Alog(Sqrt(nbaselines*2.-n_tiles))/Alog(2.)))>(Max(ant_A_list)>Max(ant_B_list)))>256.
