@@ -9,8 +9,9 @@ FUNCTION fhd_struct_init_psf,beam_ptr=beam_ptr,complex_flag=complex_flag,$
     n_pol=n_pol,n_freq=n_freq,freq_cen=freq_cen,pol_norm=pol_norm,freq_norm=freq_norm,group_arr=group_arr,$
     interpolate_kernel=interpolate_kernel,beam_mask_threshold=beam_mask_threshold,$
     image_power_beam_arr=image_power_beam_arr,ra_arr=ra_arr,dec_arr=dec_arr,$
-    psf_image_resolution=psf_image_resolution,psf_image_dim=psf_image_dim
-
+    psf_image_resolution=psf_image_resolution,psf_image_dim=psf_image_dim,$
+    beam_gaussian_params_arr=beam_gaussian_params_arr,pix_horizon=pix_horizon 
+ 
 IF N_Elements(n_pol) EQ 0 THEN n_pol=1 ELSE n_pol=Fix(n_pol)
 IF N_Elements(n_freq) EQ 0 THEN n_freq=1 ELSE n_freq=Fix(n_freq)
 IF N_Elements(freq_cen) EQ 0 THEN freq_cen=Fltarr(n_freq) ELSE freq_cen=Float(freq_cen)
@@ -32,12 +33,15 @@ IF N_Elements(dec_arr) EQ 0 THEN dec_arr=0
 IF N_Elements(psf_image_resolution) EQ 0 THEN psf_image_resolution=0
 IF N_Elements(psf_image_dim) EQ 0 THEN psf_image_dim=0
 
+IF N_Elements(beam_gaussian_params_arr) EQ 0 THEN beam_gaussian_params_arr=0
+
 arr={image_power_beam_arr:image_power_beam_arr,ra_arr:ra_arr,dec_arr:dec_arr,$
     psf_image_resolution:psf_image_resolution,psf_image_dim:psf_image_dim}
 struct={beam_ptr:beam_ptr,xvals:xvals,yvals:yvals,pnorm:pol_norm,fnorm:freq_norm,id:group_arr,$
     fbin_i:fbin_i,resolution:psf_resolution,dim:psf_dim,complex_flag:complex_flag,n_pol:n_pol,$
     n_freq:n_freq,freq:freq_cen,interpolate_kernel:interpolate_kernel,$
-    beam_mask_threshold:beam_mask_threshold,image_info:Ptr_new(arr)}
+    beam_mask_threshold:beam_mask_threshold,image_info:Ptr_new(arr),$
+    beam_gaussian_params:beam_gaussian_params_arr,pix_horizon:pix_horizon}
 
 RETURN,struct
 END

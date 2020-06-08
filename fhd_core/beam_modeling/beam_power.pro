@@ -1,11 +1,13 @@
-FUNCTION beam_power,antenna1,antenna2,ant_pol1=ant_pol1,ant_pol2=ant_pol2,freq_i=freq_i,psf_dim=psf_dim,$
+FUNCTION beam_power,antenna1,antenna2,obs=obs,ant_pol1=ant_pol1,ant_pol2=ant_pol2,freq_i=freq_i,psf_dim=psf_dim,$
   psf_image_dim=psf_image_dim,psf_intermediate_res=psf_intermediate_res,psf_resolution=psf_resolution,$
   beam_mask_electric_field=beam_mask_electric_field,beam_mask_threshold=beam_mask_threshold,$
   xvals_uv_superres=xvals_uv_superres,yvals_uv_superres=yvals_uv_superres,zen_int_x=zen_int_x,zen_int_y=zen_int_y,$
   interpolate_beam_threshold=interpolate_beam_threshold,debug_beam_clip_grow=debug_beam_clip_grow,$
   debug_beam_conjugate=debug_beam_conjugate, beam_clip_floor=beam_clip_floor,$
   debug_clip_beam_mask=debug_clip_beam_mask,beam_per_baseline=beam_per_baseline,$
-  image_power_beam=image_power_beam,kernel_window=kernel_window,_Extra=extra
+  image_power_beam=image_power_beam,kernel_window=kernel_window,beam_gaussian_decomp=beam_gaussian_decomp,$
+  beam_gaussian_params=beam_gaussian_params,volume_beam=volume_beam,sq_volume_beam=sq_volume_beam, $
+  pol_i=pol_i,remove_first=remove_first,remove_second=remove_second,_Extra=extra
 
   icomp = Complex(0, 1)
   freq_center=antenna1.freq[freq_i]
@@ -31,25 +33,42 @@ FUNCTION beam_power,antenna1,antenna2,ant_pol1=ant_pol1,ant_pol2=ant_pol2,freq_i
   power_beam = power_zenith_beam*beam_ant1*beam_ant2
 
   image_power_beam=power_beam/power_zenith
-  if keyword_set(kernel_window) then image_power_beam *= *(antenna1.pix_window)
 
   ;Generate UV beam and interpolate to a super resolution
   ;Beam uses the forward FFT for the sky->UV transformation (note that the image uses the inverse FFT)
-  psf_base_single=fft_shift(FFT(fft_shift(image_power_beam)))
-  psf_base_superres=Interpolate(psf_base_single,xvals_uv_superres,yvals_uv_superres,cubic=-0.5)
+  if keyword_set(beam_gaussian_decomp) then begin
+    ;Build a uv-plane using gaussian mixture models of the image beam
+    beam_gaussian_decomp,image_power_beam,obs=obs,antenna1=antenna1,antenna2=antenna2,psf_base_single=psf_base_single,$
+      volume_beam=volume_beam,sq_volume_beam=sq_volume_beam,beam_gaussian_params=beam_gaussian_params,$
+      freq_i=freq_i,pol=pol_i,ant_pol1=ant_pol1,ant_pol2=ant_pol2,zen_int_x=zen_int_x,zen_int_y=zen_int_y,$
+      remove_first=remove_first,remove_second=remove_second
+    psf_base_superres=Interpolate(psf_base_single,xvals_uv_superres,yvals_uv_superres,cubic=-0.5)
+    
+    ;Masking is simplier since the derivative is always negative
+    s=size(psf_base_superres, /dimensions)
+    uv_mask_superres=Fltarr(s[0],s[1]) ;dynamically set size to match psf_base_superres
+    psf_mask_threshold_use = Max(Abs(psf_base_superres))/beam_mask_threshold
+    beam_i = where(abs(psf_base_superres) GT psf_mask_threshold_use, n_count)
+    if n_count GT 0 then uv_mask_superres[beam_i]=1 else uv_mask_superres=1
+  endif else begin
+    if keyword_set(kernel_window) then image_power_beam *= *(antenna1.pix_window)
+    psf_base_single=fft_shift(FFT(fft_shift(image_power_beam)))
+    psf_base_superres=Interpolate(psf_base_single,xvals_uv_superres,yvals_uv_superres,cubic=-0.5)
   
-  s=size(psf_base_superres, /dimensions)
-  uv_mask_superres=Fltarr(s[0],s[1]) ;dynamically set size to match psf_base_superres
-  psf_mask_threshold_use = Max(Abs(psf_base_superres))/beam_mask_threshold
-  IF ant_pol1 NE ant_pol2 THEN BEGIN
-    seed_i=where(Abs(psf_base_superres) GE Max(Abs(psf_base_superres))/2.,n_seed)
-    beam_i=region_grow(Abs(psf_base_superres),seed_i,$
-      thresh=[psf_mask_threshold_use,Max(Abs(psf_base_superres))])
-  ENDIF ELSE BEGIN
-    beam_i=region_grow(Abs(psf_base_superres),dimension_super*(1.+dimension_super)/2.,$
-      thresh=[psf_mask_threshold_use,Max(Abs(psf_base_superres))])
-  ENDELSE
-  uv_mask_superres[beam_i]=1
+    ;Build a mask to remove FFT artifacts later 
+    s=size(psf_base_superres, /dimensions)
+    uv_mask_superres=Fltarr(s[0],s[1]) ;dynamically set size to match psf_base_superres
+    psf_mask_threshold_use = Max(Abs(psf_base_superres))/beam_mask_threshold
+    IF ant_pol1 NE ant_pol2 THEN BEGIN
+      seed_i=where(Abs(psf_base_superres) GE Max(Abs(psf_base_superres))/2.,n_seed)
+      beam_i=region_grow(Abs(psf_base_superres),seed_i,$
+        thresh=[psf_mask_threshold_use,Max(Abs(psf_base_superres))])
+    ENDIF ELSE BEGIN
+      beam_i=region_grow(Abs(psf_base_superres),dimension_super*(1.+dimension_super)/2.,$
+        thresh=[psf_mask_threshold_use,Max(Abs(psf_base_superres))])
+    ENDELSE
+    uv_mask_superres[beam_i]=1
+  endelse
 
   IF Keyword_Set(debug_beam_clip_grow) THEN BEGIN
     mask_dist_test = morph_distance(uv_mask_superres, neighbor=3, /background)
@@ -72,8 +91,9 @@ FUNCTION beam_power,antenna1,antenna2,ant_pol1=ant_pol1,ant_pol2=ant_pol2,freq_i
   ;FFT normalization correction in case this changes the total number of pixels
   psf_base_superres*=psf_intermediate_res^2.
   psf_base_superres/=beam_norm
-  psf_val_ref=Total(psf_base_superres)
-
+  if keyword_set(beam_gaussian_decomp) then psf_val_ref=volume_beam*psf_resolution^2. $
+     else psf_val_ref=Total(psf_base_superres)
+  
   IF Keyword_Set(debug_clip_beam_mask) THEN BEGIN
     xvals_i=Reform(meshgrid(psf_dim,psf_dim,1)*psf_resolution,psf_dim^2.)
     yvals_i=Reform(meshgrid(psf_dim,psf_dim,2)*psf_resolution,psf_dim^2.)
@@ -100,6 +120,8 @@ FUNCTION beam_power,antenna1,antenna2,ant_pol1=ant_pol1,ant_pol2=ant_pol2,freq_i
     psf_floor = psf_mask_threshold_use*(psf_intermediate_res^2.)/beam_norm
     psf_amp[i_use] -= psf_floor
     psf_base_superres = psf_amp*Cos(psf_phase) + icomp*psf_amp*Sin(psf_phase)
+    
+    ;if keyword_set(beam_gaussian_decomp) then volume_beam -= psf_mask_threshold_use
   ENDIF
 
   psf_base_superres*=psf_val_ref/Total(psf_base_superres)

@@ -4,7 +4,7 @@ FUNCTION beam_setup,obs,status_str,antenna,file_path_fhd=file_path_fhd,restore_l
   swap_pol=swap_pol,no_save=no_save,beam_pol_test=beam_pol_test,$
   beam_model_version=beam_model_version,beam_dim_fit=beam_dim_fit,save_antenna_model=save_antenna_model,$
   interpolate_kernel=interpolate_kernel,transfer_psf=transfer_psf,beam_per_baseline=beam_per_baseline,$
-  save_beam_metadata_only=save_beam_metadata_only,_Extra=extra
+  beam_gaussian_decomp=beam_gaussian_decomp,save_beam_metadata_only=save_beam_metadata_only,_Extra=extra
 
   compile_opt idl2,strictarrsubs
   t00=Systime(1)
@@ -72,7 +72,6 @@ FUNCTION beam_setup,obs,status_str,antenna,file_path_fhd=file_path_fhd,restore_l
   kbinsize_superres=kbinsize/psf_resolution
   primary_beam_area=Ptrarr(n_pol,/allocate)
   primary_beam_sq_area=Ptrarr(n_pol,/allocate)
-
   IF N_Elements(beam_mask_threshold) EQ 0 THEN beam_mask_threshold=1E2
 
   ;;begin forming psf
@@ -107,6 +106,7 @@ FUNCTION beam_setup,obs,status_str,antenna,file_path_fhd=file_path_fhd,restore_l
   complex_flag_arr=intarr(n_pol,nfreq_bin)
   beam_arr=Ptrarr(n_pol,nfreq_bin,nbaselines)
   if keyword_set(beam_per_baseline) then image_power_beam_arr=PTRARR(n_pol,nfreq_bin)
+
   ant_A_list=tile_A[0:nbaselines-1]
   ant_B_list=tile_B[0:nbaselines-1]
   baseline_mod=(2.^(Ceil(Alog(Sqrt(nbaselines*2.-n_tiles))/Alog(2.)))>(Max(ant_A_list)>Max(ant_B_list)))>256.
@@ -147,6 +147,8 @@ FUNCTION beam_setup,obs,status_str,antenna,file_path_fhd=file_path_fhd,restore_l
     ;Only use groups which are defined for efficiency
     gi_use=where(group_matrix,n_group)
     freq_center=antenna[0].freq ;all antennas need to have the same frequency coverage, so just take the first
+
+    if keyword_set(beam_gaussian_decomp) then gaussian_params=PTRARR(n_group)
 
     FOR freq_i=0,nfreq_bin-1 DO BEGIN
       t2_a=Systime(1)
@@ -197,17 +199,24 @@ FUNCTION beam_setup,obs,status_str,antenna,file_path_fhd=file_path_fhd,restore_l
 
         t_bpwr=Systime(1)
         ;Calculate power beam from antenna beams
-        psf_base_superres=beam_power(antenna[ant_1],antenna[ant_2],ant_pol1=ant_pol1,ant_pol2=ant_pol2,psf_dim=psf_dim,$
-          freq_i=freq_i,psf_image_dim=psf_image_dim,psf_intermediate_res=psf_intermediate_res,$
+        psf_base_superres=beam_power(antenna[ant_1],antenna[ant_2],obs=obs,ant_pol1=ant_pol1,ant_pol2=ant_pol2,$
+          psf_dim=psf_dim,freq_i=freq_i,psf_image_dim=psf_image_dim,psf_intermediate_res=psf_intermediate_res,$
           psf_resolution=psf_resolution,xvals_uv_superres=xvals_uv_superres,yvals_uv_superres=yvals_uv_superres,$
           beam_mask_threshold=beam_mask_threshold,zen_int_x=zen_int_x,zen_int_y=zen_int_y, $
-          beam_per_baseline=beam_per_baseline,image_power_beam=image_power_beam,_Extra=extra)
+          beam_per_baseline=beam_per_baseline,image_power_beam=image_power_beam,pol_i=pol_i,$
+          beam_gaussian_params=beam_gaussian_params,volume_beam=volume_beam,beam_gaussian_decomp=beam_gaussian_decomp,$
+          sq_volume_beam=sq_volume_beam,_Extra=extra)
 
         t_bint=Systime(1)
-        
         ;divide by psf_resolution^2 since the FFT is done at a different resolution and requires a different normalization
-        beam_int+=baseline_group_n*Total(psf_base_superres,/double)/psf_resolution^2.
-        beam2_int+=baseline_group_n*Total(Abs(psf_base_superres)^2,/double)/psf_resolution^2.
+        if keyword_set(beam_gaussian_decomp) then begin
+          beam_int+=baseline_group_n*volume_beam
+          ;Match normalized sigmas to the resolution of the volume squared
+          beam2_int+=baseline_group_n*sq_volume_beam*psf_intermediate_res^2 
+        endif else begin
+          beam_int+=baseline_group_n*Total(psf_base_superres,/double)/psf_resolution^2.
+          beam2_int+=baseline_group_n*Total(Abs(psf_base_superres)^2,/double)/psf_resolution^2.
+        endelse
         n_grp_use+=baseline_group_n
         t_beam_int+=Systime(1)-t_bint
 
@@ -234,21 +243,24 @@ FUNCTION beam_setup,obs,status_str,antenna,file_path_fhd=file_path_fhd,restore_l
         
         FOR bii=0L,baseline_group_n-1 DO beam_arr[pol_i,freq_i,bi_inds[bii]]=psf_single
 
+        if keyword_set(beam_gaussian_params) then gaussian_params[g_i]=ptr_new(beam_gaussian_params)
       ENDFOR
       if keyword_set(beam_per_baseline) then image_power_beam_arr[pol_i,freq_i]=ptr_new(image_power_beam)
-
-      beam2_int*=weight_invert(n_grp_use)/kbinsize^2. ;factor of kbinsize^2 is FFT units normalization
+      beam2_int*=weight_invert(n_grp_use)/kbinsize^2. ;factor of kbinsize^2 is fourier units normalization
       beam_int*=weight_invert(n_grp_use)/kbinsize^2.
+    
       fi_use=where(freq_bin_i EQ freq_i,nf_use)
       FOR fi1=0L,nf_use-1 DO (*primary_beam_sq_area[pol_i])[fi_use[fi1]]=Float(beam2_int)
       FOR fi1=0L,nf_use-1 DO (*primary_beam_area[pol_i])[fi_use[fi1]]=Float(beam_int)
-
+    
     ENDFOR
+    ;ordered by pol, group, with arrays of coeffs, freq
+    if keyword_set(beam_gaussian_decomp) then if pol_i EQ 0 then beam_gaussian_params_arr = Pointer_copy(gaussian_params) else $
+      beam_gaussian_params_arr = transpose([[[beam_gaussian_params_arr]],[[Pointer_copy(gaussian_params)]]])
   ENDFOR
 
   FOR pol_i=0,n_pol-1 DO obs.primary_beam_area[pol_i]=primary_beam_area[pol_i]
   FOR pol_i=0,n_pol-1 DO obs.primary_beam_sq_area[pol_i]=primary_beam_sq_area[pol_i]
-
   print,t_ant,t_beam_power,t_beam_int
 
   ;higher than necessary psf_dim is VERY computationally expensive, but we also don't want to crop the beam if there 
@@ -261,22 +273,25 @@ FUNCTION beam_setup,obs,status_str,antenna,file_path_fhd=file_path_fhd,restore_l
     psf_resolution=psf_resolution,psf_dim=psf_dim,complex_flag=1,pol_norm=pol_norm,freq_norm=freq_norm,$
     n_pol=n_pol,n_freq=nfreq_bin,freq_cen=freq_center,group_arr=group_arr,interpolate_kernel=interpolate_kernel,$
     image_power_beam_arr=image_power_beam_arr,ra_arr=ra_arr,dec_arr=dec_arr,psf_image_dim=psf_image_dim,$
-    psf_image_resolution=psf_image_resolution,beam_mask_threshold=beam_mask_threshold)
+    psf_image_resolution=psf_image_resolution,beam_mask_threshold=beam_mask_threshold,$
+    beam_gaussian_params_arr=beam_gaussian_params_arr,pix_horizon=obs.dimension/antenna[0].psf_scale)
 
   ; Briefly create a new psf struct with the beam ptr set to 0 if only metadata is to be saved to disk,
   ; otherwise save the full psf struct
-  IF Keyword_Set(save_beam_metadata_only) THEN BEGIN
-    psf_metadata=fhd_struct_init_psf(beam_ptr=0,xvals=psf_xvals,yvals=psf_yvals,fbin_i=freq_bin_i,$
-      psf_resolution=psf_resolution,psf_dim=psf_dim,complex_flag=1,pol_norm=pol_norm,freq_norm=freq_norm,$
+  if keyword_set(save_beam_metadata_only) then begin
+    psf_metadata = fhd_struct_init_psf(beam_ptr=0,xvals=psf_xvals,yvals=psf_yvals,fbin_i=freq_bin_i,$
+      psf_resolution=psf_resolution,psf_dim=psf_dim,complex_flag=complex_flag,pol_norm=pol_norm,freq_norm=freq_norm,$
       n_pol=n_pol,n_freq=nfreq_bin,freq_cen=freq_center,group_arr=group_arr,interpolate_kernel=interpolate_kernel,$
       image_power_beam_arr=image_power_beam_arr,ra_arr=ra_arr,dec_arr=dec_arr,psf_image_dim=psf_image_dim,$
-      psf_image_resolution=psf_image_resolution,beam_mask_threshold=beam_mask_threshold)
+      psf_image_resolution=psf_image_resolution,beam_mask_threshold=beam_mask_threshold,$
+      beam_gaussian_params_arr=beam_gaussian_params_arr,pix_horizon=obs.dimension/antenna[0].psf_scale)
     fhd_save_io,status_str,psf_metadata,var='psf',/compress,file_path_fhd=file_path_fhd,no_save=no_save
     undefine, psf_metadata
-  ENDIF ELSE fhd_save_io,status_str,psf,var='psf',/compress,file_path_fhd=file_path_fhd,no_save=no_save
+  endif else fhd_save_io,status_str,psf,var='psf',/compress,file_path_fhd=file_path_fhd,no_save=no_save
 
   fhd_save_io,status_str,antenna,var='antenna',/compress,file_path_fhd=file_path_fhd,no_save=~save_antenna_model
   IF not antenna_flag THEN undefine_fhd,antenna
   timing=Systime(1)-t00
+
   RETURN,psf
 END
