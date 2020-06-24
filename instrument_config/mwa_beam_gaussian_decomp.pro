@@ -54,6 +54,7 @@ pro mwa_beam_gaussian_decomp, cen, pix_hor, parinfo=parinfo, parvalues=p, freq=f
   parinfo[*].value = p ; just for record keeping purposes...cannot be used with the .fixed input (self-referencing issues)
 
   ;Fix amplitude parameters together which are always in the image fully
+  parinfo[0].fixed = 1
   parinfo[5].tied = 'p[10]' ;pr s null amp = pr n null amp
   parinfo[15].tied = 'p[20]' ;pr w null amp = pr e null amp
   parinfo[25].tied = 'p[35]' ;sw1 amp = se1 amp

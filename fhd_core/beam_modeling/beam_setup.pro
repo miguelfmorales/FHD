@@ -72,6 +72,7 @@ FUNCTION beam_setup,obs,status_str,antenna,file_path_fhd=file_path_fhd,restore_l
   kbinsize_superres=kbinsize/psf_resolution
   primary_beam_area=Ptrarr(n_pol,/allocate)
   primary_beam_sq_area=Ptrarr(n_pol,/allocate)
+  if keyword_set(beam_gaussian_decomp) then beam_gaussian_params_arr=Ptrarr(n_pol,/allocate)
   IF N_Elements(beam_mask_threshold) EQ 0 THEN beam_mask_threshold=1E2
 
   ;;begin forming psf
@@ -255,8 +256,7 @@ FUNCTION beam_setup,obs,status_str,antenna,file_path_fhd=file_path_fhd,restore_l
     
     ENDFOR
     ;ordered by pol, group, with arrays of coeffs, freq
-    if keyword_set(beam_gaussian_decomp) then if pol_i EQ 0 then beam_gaussian_params_arr = Pointer_copy(gaussian_params) else $
-      beam_gaussian_params_arr = transpose([[[beam_gaussian_params_arr]],[[Pointer_copy(gaussian_params)]]])
+    if keyword_set(beam_gaussian_decomp) then beam_gaussian_params_arr[pol_i] = Pointer_copy(gaussian_params)
   ENDFOR
 
   FOR pol_i=0,n_pol-1 DO obs.primary_beam_area[pol_i]=primary_beam_area[pol_i]

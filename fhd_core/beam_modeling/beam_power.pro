@@ -91,8 +91,11 @@ FUNCTION beam_power,antenna1,antenna2,obs=obs,ant_pol1=ant_pol1,ant_pol2=ant_pol
   ;FFT normalization correction in case this changes the total number of pixels
   psf_base_superres*=psf_intermediate_res^2.
   psf_base_superres/=beam_norm
-  if keyword_set(beam_gaussian_decomp) then psf_val_ref=volume_beam*psf_resolution^2. $
-     else psf_val_ref=Total(psf_base_superres)
+  ;;gaussian decomposition can be calculated analytically, but is an over-estimate of the 
+  ;; numerical representation and results in a beam norm of greater than one
+  ;if keyword_set(beam_gaussian_decomp) then psf_val_ref=volume_beam*psf_resolution^2. $
+  ;   else psf_val_ref=Total(psf_base_superres)
+  psf_val_ref=Total(psf_base_superres)
   
   IF Keyword_Set(debug_clip_beam_mask) THEN BEGIN
     xvals_i=Reform(meshgrid(psf_dim,psf_dim,1)*psf_resolution,psf_dim^2.)
