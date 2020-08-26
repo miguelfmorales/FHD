@@ -108,7 +108,7 @@ pro beam_gaussian_decomp, image_power_beam, obs=obs, antenna1=antenna1, antenna2
 
     if (pol EQ 0) then begin
       ;instrument-specific and pointing-specific gaussian parameters
-      mwa_beam_gaussian_decomp, (cen*pad)/2., pix_hor, parinfo=parinfo, parvalues=p, freq=antenna1.freq[freq_i], $
+      mwa_beam_gaussian_decomp, (cen*pad)/2., pix_hor, obs.kpix, parinfo=parinfo, parvalues=p, freq=antenna1.freq[freq_i], $
         gauss_beam_fbin = gauss_beam_fbin, pol=pol
 
       ;Least-squares iterator to fit gaussians

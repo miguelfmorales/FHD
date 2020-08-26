@@ -1,5 +1,10 @@
-pro mwa_beam_gaussian_decomp, cen, pix_hor, parinfo=parinfo, parvalues=p, freq=freq, pol=pol, $
+pro mwa_beam_gaussian_decomp, cen, pix_hor, kbinsize, parinfo=parinfo, parvalues=p, freq=freq, pol=pol, $
   gauss_beam_fbin = gauss_beam_fbin
+
+  ;scale gaussians by the resolution factor the the model was made with
+  res_scale = 0.5 / kbinsize
+  pix_hor = pix_hor / res_scale
+
   ;ordered by amp, offset x, sigma x, offset y, sigma y per lobe
 
   ;Input gaussian parameters to help convergence
