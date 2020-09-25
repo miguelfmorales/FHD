@@ -68,7 +68,7 @@ ENDFOR
 antenna_str={n_pol:n_ant_pol,antenna_type:instrument,names:ant_names,model_version:beam_model_version,freq:freq_center,nfreq_bin:nfreq_bin,$
     n_ant_elements:0,Jones:Ptrarr(n_ant_pol,n_ant_pol,nfreq_bin),coupling:Ptrarr(n_ant_pol,nfreq_bin),gain:Ptrarr(n_ant_pol),coords:Ptrarr(3),$
     delays:Ptr_new(),size_meters:0.,height:0.,response:Ptrarr(n_ant_pol,nfreq_bin),group_id:Lonarr(n_ant_pol)-1,pix_window:Ptr_new(),pix_use:Ptr_new(),$
-    psf_image_dim:0.}
+    psf_image_dim:0.,psf_scale:0.}
     
 ;update structure with instrument-specific values, and return as a structure array, with an entry for each tile/antenna
 ;first, update to include basic configuration data
@@ -84,7 +84,7 @@ IF ~Keyword_Set(psf_dim) THEN $
     psf_dim=Ceil((Max(antenna.size_meters)*2.*Max(frequency_array)/speed_light)/kbinsize)
 psf_dim=Ceil(psf_dim/2.)*2. ;dimension MUST be even
 ;reset psf_dim if cetain conditions met.
-if keyword_set(debug_dim) then psf_dim=18.
+if keyword_set(debug_dim) then psf_dim=28.
 if keyword_set(kernel_window) then psf_dim=18.
 
 IF Keyword_Set(psf_max_dim) THEN BEGIN
@@ -98,6 +98,7 @@ psf_image_dim=psf_dim*psf_image_resolution*psf_intermediate_res ;use a larger bo
 psf_superres_dim=psf_dim*psf_resolution
 psf_scale=dimension*psf_intermediate_res/psf_image_dim
 antenna.psf_image_dim=psf_image_dim
+antenna.psf_scale=psf_scale
 
 xvals_celestial=meshgrid(psf_image_dim,psf_image_dim,1)*psf_scale-psf_image_dim*psf_scale/2.+obsx
 yvals_celestial=meshgrid(psf_image_dim,psf_image_dim,2)*psf_scale-psf_image_dim*psf_scale/2.+obsy

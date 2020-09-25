@@ -39,8 +39,6 @@ pro mwa_beam_gaussian_decomp, cen, pix_hor, kbinsize, parinfo=parinfo, parvalues
   var[3,*] = ((cen - var[3,*]) * freq_dep) + cen
   var[2,*] *= freq_dep
   var[4,*] *= freq_dep
-  ;var[2,1:3] /= freq_dep ;remove freq dependence of width of primary nulls
-  ;var[4,1:3] /= freq_dep
 
   ;Model was made in x polarization, flip appropriately
   if pol EQ 1 then begin
@@ -53,7 +51,6 @@ pro mwa_beam_gaussian_decomp, cen, pix_hor, kbinsize, parinfo=parinfo, parvalues
   endif
 
   p = reform(var,N_elements(p))
-
 
   parinfo = replicate({value:0.,fixed:0,tied:''},N_elements(p))
   parinfo[*].value = p ; just for record keeping purposes...cannot be used with the .fixed input (self-referencing issues)

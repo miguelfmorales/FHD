@@ -1,93 +1,24 @@
 ;;
-;; Using input parameters p, build a gaussian mixture model of the image beam on 
-;; the x,y grid. 
+;; Decompose the image beam of an instrument using pre-defined gaussians in a 
+;;  2D-fitting routine.
 ;;
-;; x: Required x-axis vector
-;; y: Required y-axis vector
-;; p: Required gaussian parameter vector, 
-;;  ordered as amp, offset x, sigma x, offset y, sigma y per lobe
-;; fft: Optionally return the analytic Fourier Transform of the input gaussians
-;; model_npix: Optionally provide the number of pixels on an axis used to derive
-;;  the input parameters to convert to the current x,y grid 
-;; model_res: Optionally provide the grid resolution used to derive the input
-;;  parameters to convert to the current grid resolution
-;;
-
-function gaussian_decomp, x, y, p, fft=fft, model_npix=model_npix, model_res=model_res,$
-  volume_beam=volume_beam,sq_volume_beam=sq_volume_beam,obs=obs,remove_first=remove_first,$
-  remove_second=remove_second;,$
-  
-  nx = N_elements(x)
-  ny = N_elements(y)
-  decomp_beam=FLTARR(nx,ny)
-  var = reform(p,5,N_elements(p)/5)  
-  n_lobes = (size(var))[2]
-  i = Complex(0,1)
-
-  ;If the parameters were built on a different grid, then put on new grid
-  ;Npix only affects the offset params
-  ;Assumes model grid was smaller
-  if keyword_set(model_npix) then begin
-    offset = abs(nx/2. - model_npix/2.)
-    var[1,*] = var[1,*] + offset 
-    var[3,*] = var[3,*] + offset
-  endif
-  ;Res affects gaussian sigma and offsets
-  if keyword_set(model_res) then begin
-    var[2,*] = var[2,*] * model_res
-    var[4,*] = var[4,*] * model_res
-    var[1,*] = ((var[1,*]-nx/2.) * model_res) + nx/2.
-    var[3,*] = ((var[3,*]-ny/2.) * model_res) + ny/2.
-  endif
-  
-            
-  if ~keyword_set(fft) then begin
-    ;Full image model with all the gaussian components
-    for lobe_i=0, n_lobes - 1 do begin
-      decomp_beam += var[0,lobe_i] * $
-        (exp(-(x-var[1,lobe_i])^2/(2*var[2,lobe_i]^2))#exp(-(y-var[3,lobe_i])^2/(2*var[4,lobe_i]^2)))  
-    endfor
-  endif else begin
-    ;Full uv model with all the gaussian components
-    if keyword_set(remove_first) then begin
-      var[0,5]=0
-      var[0,7]=0
-      var[0,9]=0
-      var[0,11]=0
-    endif
-    if keyword_set(remove_second) then begin
-      var[0,6]=0
-      var[0,8]=0
-      var[0,10]=0
-      var[0,12]=0
-      var[0,13]=0
-      var[0,14]=0
-      var[0,15]=0
-      var[0,16]=0
-    endif
-    volume_beam = total(var[0,*])
-    sq_volume_beam = !Dpi*total((var[2,*])*(var[4,*])*var[0,*]^2)/(nx*ny)
-
-    kx = (FINDGEN(nx)-nx/2.)#(FLTARR(ny)+1.)
-    ky = (FLTARR(nx)+1.)#(FINDGEN(ny)-ny/2.)
-    for lobe_i=0, n_lobes - 1 do begin 
-      decomp_beam += var[0,lobe_i]*2.*!pi/(nx*ny)*var[2,lobe_i]*var[4,lobe_i]* $
-        exp(-2*!pi^2/(nx*ny)*(var[2,lobe_i]^2*kx^2+var[4,lobe_i]^2*ky^2)-$
-        2*!pi/(nx*ny)*i*(var[1,lobe_i]*kx+var[3,lobe_i]*ky))
-    endfor
-  endelse
-  
-  return, decomp_beam
-
-end
-
-
+;; image_power_beam: Required image of the beam power
+;; obs: Required obs structure for observation info
+;; antenna1, antenna2: Required antenna structures for metadata and responses 
+;; ant_pol1, ant_pol2: Required polarization of the antennas
+;; psf_base_single: Returns the gaussian decomposed uv beam for the two antennas 
+;; max_iter: Option to control the maximum number of iterations for the 2D fitter
+;; beam_gaussian_params: Returns the gaussian parameters fit with the 2D fitter
+;; volume_beam: Returns the analytical calculation of the beam volume
+;; sq_volume_beam: Returns the analytical calculation of the squared beam volume
+;; freq_i: Required frequency index for the current fit
+;; pol: Required polarization index for the current_fit
+;; zen_int_x, zen_int_y: pixel indicies that line up with a common grid
 
 
 pro beam_gaussian_decomp, image_power_beam, obs=obs, antenna1=antenna1, antenna2=antenna2, ant_pol1=ant_pol1,$
   ant_pol2=ant_pol2,psf_base_single=psf_base_single, maxiter=maxiter, beam_gaussian_params=beam_gaussian_params, $
-  volume_beam=volume_beam,sq_volume_beam=sq_volume_beam,freq_i=freq_i,pol=pol,zen_int_x=zen_int_x,zen_int_y=zen_int_y,$
-  remove_first=remove_first,remove_second=remove_second
+  volume_beam=volume_beam,sq_volume_beam=sq_volume_beam,freq_i=freq_i,pol=pol,zen_int_x=zen_int_x,zen_int_y=zen_int_y
 
   pix_use = *antenna1[0].pix_use
   n_freq = N_elements(antenna1.freq)
@@ -138,6 +69,7 @@ pro beam_gaussian_decomp, image_power_beam, obs=obs, antenna1=antenna1, antenna2
 
         image_power_beam_use=power_beam/power_zenith
 
+        ;Begin fitting the gaussian decomposition to the instrumental beam image
         t0=Systime(1)
         fitted_p = MPFIT2DFUN('gaussian_decomp', x, y, $
           abs(image_power_beam_use[range[0]:range[1],range[0]:range[1]]), 1 , p, parinfo=parinfo, weights=1d, /quiet, errmsg=errmsg, $
@@ -156,7 +88,7 @@ pro beam_gaussian_decomp, image_power_beam, obs=obs, antenna1=antenna1, antenna2
 
       if ~keyword_set(beam_gaussian_params) then beam_gaussian_params = DBLARR(N_elements(p),n_freq)
       
-      ;; Gaussian parameters constrained by selected frequencies. Fill in the rest of the freq with fitted polynomials
+      ;; Gaussian parameters constrained by selected frequencies. Fill in the rest of the freq with second-order polynomial
       if gauss_beam_fbin LT n_freq then begin
         poly_coeffs=FLTARR(N_elements(p),3)
         for p_i=0,N_elements(p)-1 do begin
@@ -182,7 +114,6 @@ pro beam_gaussian_decomp, image_power_beam, obs=obs, antenna1=antenna1, antenna2
 
   ;Build uv-plane of the fitted gaussians
   psf_base_single = gaussian_decomp(FINDGEN(psf_image_dim),FINDGEN(psf_image_dim),beam_gaussian_params[*,freq_i],$
-    fft=1,model_npix=cen*pad,volume_beam=volume_beam,sq_volume_beam=sq_volume_beam,obs=obs,$
-    remove_first=remove_first,remove_second=remove_second)
+    fft=1,model_npix=cen*pad,volume_beam=volume_beam,sq_volume_beam=sq_volume_beam)
 
 end
