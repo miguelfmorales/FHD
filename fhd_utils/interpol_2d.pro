@@ -22,13 +22,13 @@ mask_i_threshold = dimension/2
 FOR i=0, dimension-1 DO BEGIN
     mask_sum = Total(mask[i, *])
     IF mask_sum LE mask_i_threshold THEN CONTINUE
-    result_x[i, *] = interpol(image_use[i, *], dimension)
+    result_x[i, *] = interpol(image_use[i, *], dimension, /NAN)
     weights_x[i, *] = mask_sum
 ENDFOR
 FOR j=0, elements-1 DO BEGIN
     mask_sum = Total(mask[*, j])
     IF mask_sum LE mask_i_threshold THEN CONTINUE
-    result_y[*, j] = interpol(image_use[*, j], elements)
+    result_y[*, j] = interpol(image_use[*, j], elements, /NAN)
     weights_y[*, j] = mask_sum
 ENDFOR
 ;i_cut = where((weights_x + weights_y) 
