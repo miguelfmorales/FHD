@@ -3,7 +3,7 @@ PRO in_situ_sim_setup, in_situ_sim_input, vis_arr, vis_weights, flag_calibration
     hdr=hdr, params=params, calibration_catalog_file_path=calibration_catalog_file_path, $
     diffuse_calibrate=diffuse_calibrate,transfer_calibration=transfer_calibration,freq_start=freq_start, $
     freq_end=freq_end,tile_flag_list=tile_flag_list,deproject_w_term=deproject_w_term,dft_threshold=dft_threshold, $
-    remove_sim_flags=remove_sim_flags,extra_vis_filepath=extra_vis_filepath,_Extra=extra
+    remove_sim_flags=remove_sim_flags,extra_vis_filepath=extra_vis_filepath,use_extra_flags=use_extra_flags,_Extra=extra
     
   print, "Performing in-situ simulation"
   

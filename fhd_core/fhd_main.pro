@@ -55,7 +55,7 @@ IF data_flag LE 0 THEN BEGIN
           hdr=hdr,params=params,calibration_catalog_file_path=calibration_catalog_file_path, $
           diffuse_calibrate=diffuse_calibrate,transfer_calibration=transfer_calibration,freq_start=freq_start,$
           freq_end=freq_end,tile_flag_list=tile_flag_list,deproject_w_term=deproject_w_term,dft_threshold=dft_threshold,$
-          remove_sim_flags=remove_sim_flags,extra_vis_filepath=extra_vis_filepath,_Extra=extra
+          remove_sim_flags=remove_sim_flags,extra_vis_filepath=extra_vis_filepath,use_extra_flags=use_extra_flags,_Extra=extra
     
     IF Keyword_Set(generate_vis_savefile) THEN BEGIN
         IF Strpos(file_path_vis,'.sav') EQ -1 THEN file_path_vis_sav=file_path_vis+".sav" ELSE file_path_vis_sav=file_path_vis
