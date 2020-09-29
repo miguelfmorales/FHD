@@ -133,5 +133,7 @@ PRO in_situ_sim_setup, in_situ_sim_input, vis_arr, vis_weights, flag_calibration
   if keyword_set(remove_sim_flags) then for pol_i=0, n_pol-1 do (*vis_weights[pol_i])[*,*]=1.
   flag_calibration=0
 
+  if keyword_set(use_extra_flags) then vis_weights=vis_extra_weights
+
   return
 END
