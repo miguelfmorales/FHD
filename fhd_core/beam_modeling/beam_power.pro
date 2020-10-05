@@ -7,7 +7,7 @@ FUNCTION beam_power,antenna1,antenna2,obs=obs,ant_pol1=ant_pol1,ant_pol2=ant_pol
   debug_clip_beam_mask=debug_clip_beam_mask,beam_per_baseline=beam_per_baseline,$
   image_power_beam=image_power_beam,kernel_window=kernel_window,beam_gaussian_decomp=beam_gaussian_decomp,$
   beam_gaussian_params=beam_gaussian_params,volume_beam=volume_beam,sq_volume_beam=sq_volume_beam, $
-  pol_i=pol_i,remove_first=remove_first,remove_second=remove_second,_Extra=extra
+  pol_i=pol_i,_Extra=extra
 
   icomp = Complex(0, 1)
   freq_center=antenna1.freq[freq_i]
@@ -40,8 +40,7 @@ FUNCTION beam_power,antenna1,antenna2,obs=obs,ant_pol1=ant_pol1,ant_pol2=ant_pol
     ;Build a uv-plane using gaussian mixture models of the image beam
     beam_gaussian_decomp,image_power_beam,obs=obs,antenna1=antenna1,antenna2=antenna2,psf_base_single=psf_base_single,$
       volume_beam=volume_beam,sq_volume_beam=sq_volume_beam,beam_gaussian_params=beam_gaussian_params,$
-      freq_i=freq_i,pol=pol_i,ant_pol1=ant_pol1,ant_pol2=ant_pol2,zen_int_x=zen_int_x,zen_int_y=zen_int_y,$
-      remove_first=remove_first,remove_second=remove_second
+      freq_i=freq_i,pol=pol_i,ant_pol1=ant_pol1,ant_pol2=ant_pol2,zen_int_x=zen_int_x,zen_int_y=zen_int_y
     psf_base_superres=Interpolate(psf_base_single,xvals_uv_superres,yvals_uv_superres,cubic=-0.5)
     
     ;Masking is simplier since the derivative is always negative
