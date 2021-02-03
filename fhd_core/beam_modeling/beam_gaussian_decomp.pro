@@ -54,8 +54,6 @@ pro beam_gaussian_decomp, image_power_beam, obs=obs, antenna1=antenna1, antenna2
       endif else begin
 
         ;instrument-specific and pointing-specific gaussian parameters (calls mwa_beam_gaussian_decomp for the mwa)
-        ;mwa_beam_gaussian_decomp, (cen*pad)/2., pix_hor, obs, parinfo=parinfo, parvalues=p, freq=antenna1.freq[freq_i], $
-        ;  gauss_beam_fbin = gauss_beam_fbin, pol=pol
         Call_procedure, beam_decomp_fn, (cen*pad)/2., pix_hor, obs, parinfo=parinfo, parvalues=p, freq=antenna1.freq[freq_i], $
           gauss_beam_fbin = gauss_beam_fbin, pol=pol
 

@@ -213,7 +213,8 @@ FUNCTION beam_setup,obs,status_str,antenna,file_path_fhd=file_path_fhd,restore_l
         if keyword_set(beam_gaussian_decomp) then begin
           beam_int+=baseline_group_n*volume_beam
           ;Match normalized sigmas to the resolution of the volume squared
-          beam2_int+=baseline_group_n*sq_volume_beam*psf_intermediate_res^2 
+          beam2_int+=baseline_group_n*sq_volume_beam*psf_intermediate_res^2
+          gaussian_params[g_i]=ptr_new(beam_gaussian_params) 
         endif else begin
           beam_int+=baseline_group_n*Total(psf_base_superres,/double)/psf_resolution^2.
           beam2_int+=baseline_group_n*Total(Abs(psf_base_superres)^2,/double)/psf_resolution^2.
@@ -244,7 +245,6 @@ FUNCTION beam_setup,obs,status_str,antenna,file_path_fhd=file_path_fhd,restore_l
         
         FOR bii=0L,baseline_group_n-1 DO beam_arr[pol_i,freq_i,bi_inds[bii]]=psf_single
 
-        if keyword_set(beam_gaussian_params) then gaussian_params[g_i]=ptr_new(beam_gaussian_params)
       ENDFOR
       if keyword_set(beam_per_baseline) then image_power_beam_arr[pol_i,freq_i]=ptr_new(image_power_beam)
       beam2_int*=weight_invert(n_grp_use)/kbinsize^2. ;factor of kbinsize^2 is fourier units normalization
