@@ -155,6 +155,7 @@ IF n_use GT 0 THEN BEGIN
         print, "WARNING: Model catalog contains nan/inf fluxes"
         source_list=source_list[inds_finite]
     ENDIF
+
     influence=source_list.flux.I*beam[source_list.x,source_list.y]
    
     order=Reverse(sort(influence))

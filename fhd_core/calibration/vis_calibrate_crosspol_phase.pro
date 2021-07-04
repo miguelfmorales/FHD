@@ -32,7 +32,7 @@ IF n_pol EQ 4 THEN BEGIN
   model_xy = Reform(model_xy[i_use],1,n_use)
   model_yx = Reform(model_yx[i_use],1,n_use)
   
-  vis_sum = Total(Conj(Temporary(vis_xy))*Temporary(model_xy)) + Total(Conj(Temporary(vis_yx))*Temporary(model_yx))
+  vis_sum = Total(Conj(Temporary(vis_xy))*Temporary(model_xy)) + Total(Temporary(vis_yx)*Conj(Temporary(model_yx)))
   cross_phase = atan(vis_sum, /phase)
   
   print,"Phase fit between X and Y antenna polarizations:", cross_phase

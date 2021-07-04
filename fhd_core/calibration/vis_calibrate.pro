@@ -43,7 +43,7 @@ FUNCTION vis_calibrate,vis_ptr,cal,obs,status_str,psf,params,jones,vis_weight_pt
           cal=getvar_savefile(cal_file_use,'cal')
           gain_arr_ptr=cal.gain
           IF ~Keyword_Set(cal.cal_origin) THEN cal.cal_origin=cal_file_use
-          cal=fhd_struct_init_cal(obs,params,calibration_origin=cal.cal_origin,gain_arr_ptr=cal.gain,_Extra=extra)
+          ;cal=fhd_struct_init_cal(obs,params,calibration_origin=cal.cal_origin,gain_arr_ptr=cal.gain,_Extra=extra)
         END
         '.txt':BEGIN
           textfast,gain_arr,/read,file_path=cal_file_use
